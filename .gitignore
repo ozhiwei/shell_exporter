@@ -1,0 +1,4 @@
+.build
+shell_exporter
+*.tar.gz
+vendor

@@ -1,76 +1,68 @@
-# Script Exporter
+# What?
 
-GitHub: https://github.com/adhocteam/script_exporter
+Prometheus Metrics Exporter by Shell
 
-Prometheus exporter written to execute and collect metrics on script exit status
-and duration. Designed to allow the execution of probes where support for the
-probe type wasn't easily configured with the Prometheus blackbox exporter.
+So It's Name shell_exporter
 
-Minimum supported Go Version: 1.13.1
+# talking is cheap, show the result
 
-## Sample Configuration
+## config.yml configure file
 
 ```yaml
-scripts:
-  - name: success
-    script: sleep 5
-
-  - name: failure
-    script: sleep 2 && exit 1
-
-  - name: timeout
-    script: sleep 5
-    timeout: 1
+shells:
+  - name: fruit_random_price
+    const_labels:
+      env: test
+      mode: script
+    labels_regexp: (?P<name>.+), (?P<type>.+), (?P<size>.+) (?P<value>[0-9.]+)
+    help: "show fruit random number by shell."
+    cmd: echo -n -e "apple, fruit, big $RANDOM\ntomato, vegetable, small $RANDOM"
+    bin: /bin/bash
+  - name: process_total
+    const_labels:
+      env: test
+      mode: shell
+      os: ubuntu
+      name: ssh
+    labels_regexp: (?P<hostname>.+)\n(?P<value>[0-9.]+)
+    help: "show process count total."
+    cmd: hostname; ps -ef | grep bash | grep -v 'grep' | wc -l
+    bin: /bin/bash
+  - name: ss_estab_total
+    const_labels:
+      env: product
+      mode: script
+      os: debian
+    labels_regexp: (?P<hostname>.+)\n(?P<value>[0-9.]+)
+    help: "show ssh estab count by shell."
+    cmd: hostname; ss -antp | grep ssh | grep ESTAB | wc -l
+    bin: /bin/bash
 ```
 
-## Running
-
-You can run via docker with:
-
+## Http Reqeust Metrics
 ```
-docker run -d -p 9172:9172 --name script-exporter \
-  -v `pwd`/script-exporter.yml:/etc/script-exporter/config.yml:ro \
-  adhocteam/script-exporter:master \
-  -config.file=/etc/script-exporter/config.yml \
-  -web.listen-address=":9172" \
-  -web.telemetry-path="/metrics" \
-  -config.shell="/bin/sh"
-```
-
-You'll need to customize the docker image or use the binary on the host system
-to install tools such as curl for certain scenarios.
-
-## Probing
-
-To return the script exporter internal metrics exposed by the default Prometheus
-handler:
-
-`$ curl http://localhost:9172/metrics`
-
-To execute a script, use the `name` parameter to the `/probe` endpoint:
-
-`$ curl http://localhost:9172/probe?name=failure`
-
-```
-script_duration_seconds{script="failure"} 2.008337
-script_success{script="failure"} 0
+# HELP process_total show process count total.
+# TYPE process_total gauge
+process_total{env="test",hostname="ozhiwei",mode="shell",name="ssh",os="ubuntu"} 8
+# HELP ss_estab_total show ssh estab count by shell.
+# TYPE ss_estab_total gauge
+ss_estab_total{env="product",hostname="ozhiwei",mode="script",os="debian"} 5
+# HELP fruit_random_price show fruit random number by shell.
+# TYPE fruit_random_price gauge
+fruit_random_price{env="test",mode="script",name="apple",size="big",type="fruit"} 24075
+fruit_random_price{env="test",mode="script",name="tomato",size="small",type="vegetable"} 10732
 ```
 
-A regular expression may be specified with the `pattern` paremeter:
-
-`$ curl http://localhost:9172/probe?pattern=.*`
+## Build & Install
 
 ```
-script_duration_seconds{script="timeout"} 1.005727
-script_success{script="timeout"} 0
-script_duration_seconds{script="failure"} 2.015021
-script_success{script="failure"} 0
-script_duration_seconds{script="success"} 5.013670
-script_success{script="success"} 1
+git clone github.com/ozhiwei/shell_exporter
+
+cd shell_exporter
+
+docker run -it --rm -v $(pwd):/data/ -w /data golang make
 ```
 
-## Design
+## Usage
 
-YMMV if you're attempting to execute a large number of scripts, and you'd be
-better off creating an exporter that can handle your protocol without launching
-shell processes for each scrape.
+copy the shell_exporter to any node and run it (don't forget configure config.yml)

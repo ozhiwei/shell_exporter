@@ -1,0 +1,28 @@
+shells:
+  - name: fruit_random_price
+    const_labels:
+      env: test
+      mode: script
+    labels_regexp: (?P<name>.+), (?P<type>.+), (?P<size>.+) (?P<value>[0-9.]+)
+    help: "show fruit random number by shell."
+    cmd: echo -n -e "apple, fruit, big $RANDOM\ntomato, vegetable, small $RANDOM"
+    bin: /bin/bash
+  - name: process_total
+    const_labels:
+      env: test
+      mode: shell
+      os: ubuntu
+      name: ssh
+    labels_regexp: (?P<hostname>.+)\n(?P<value>[0-9.]+)
+    help: "show process count total."
+    cmd: hostname; ps -ef | grep bash | grep -v 'grep' | wc -l
+    bin: /bin/bash
+  - name: ss_estab_total
+    const_labels:
+      env: product
+      mode: script
+      os: debian
+    labels_regexp: (?P<hostname>.+)\n(?P<value>[0-9.]+)
+    help: "show ssh estab count by shell."
+    cmd: hostname; ss -antp | grep ssh | grep ESTAB | wc -l
+    bin: /bin/bash
