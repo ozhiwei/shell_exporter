@@ -32,7 +32,6 @@ type Shell struct {
 	Name         string            `yaml:"name"`
 	Help         string            `yaml:"help"`
 	Cmd          string            `yaml:"cmd"`
-	Line         bool              `yaml:"line`
 	ConstLabels  map[string]string `yaml:"const_labels"`
 	LabelsRegexp string            `yaml:"labels_regexp"`
 	Bin          string            `yaml:"bin"`
@@ -69,22 +68,24 @@ func findStringSubmatchMaps(re *regexp.Regexp, s string) (matchMaps []map[string
 	return
 }
 
-func NewShellManger() *ShellManger {
+func NewShellManger() (shellManger *ShellManger, err error){
 
 	yamlFile, err := ioutil.ReadFile(*configFile)
 	if err != nil {
-		log.Fatalln("read config fail", err, *configFile)
+		log.Errorln("read config fail", err, *configFile)
+		return
 	}
 
 	config := Config{}
 	err = yaml.Unmarshal(yamlFile, &config)
 	if err != nil {
-		log.Fatalln("parse yaml fail", err, *configFile)
+		log.Errorln("parse yaml fail", err, *configFile)
+		return
 	}
 
-	shellManger := &ShellManger{Config: config}
+	shellManger = &ShellManger{Config: config}
 
-	return shellManger
+	return
 }
 
 func (s *ShellManger) initShellManger() {
@@ -198,7 +199,11 @@ func (s *Shell) collect() {
 func main() {
 	flag.Parse()
 
-	newShellManger := NewShellManger()
+	newShellManger, err := NewShellManger()
+	if err != nil {
+		log.Fatalf("new shellmanager fail, %s", err)
+	}
+
 	newShellManger.initShellManger()
 	prometheus.MustRegister(newShellManger)
 
