@@ -39,6 +39,7 @@ type Shell struct {
 
 	VariableLabels []string
 
+	Metrics []prometheus.Metric
 	Output    string
 	MatchMaps []map[string]string
 
@@ -90,29 +91,7 @@ func (s *ShellManger) initShellManger() {
 	s.Shells = s.Config.Shells
 
 	for _, shell := range s.Shells {
-
-		lRe := regexp.MustCompile(shell.LabelsRegexp)
-		labels := lRe.SubexpNames()
-		variableLabels := make([]string, 0)
-		for _, v := range labels[1:] {
-			if v == "" {
-				log.Fatalf("ERROR labels_regexp: '%s', '%s'", shell.LabelsRegexp, labels)
-			}
-
-			if v != "value" {
-				variableLabels = append(variableLabels, v)
-			}
-		}
-
-		shell.VariableLabels = variableLabels
-
-		desc := prometheus.NewDesc(
-			shell.Name,
-			shell.Help,
-			shell.VariableLabels,
-			shell.ConstLabels,
-		)
-		shell.Desc = desc
+		shell.init()
 	}
 }
 
@@ -129,19 +108,49 @@ func (s *ShellManger) Collect(ch chan<- prometheus.Metric) {
 func (s *ShellManger) runShells(ch chan<- prometheus.Metric) {
 	var wg sync.WaitGroup
 
+
 	for _, shell := range s.Shells {
+		shell.Metrics = make([]prometheus.Metric, 0)
+
 		wg.Add(1)
 		go func(shell *Shell) {
 			shell.run()
 			shell.match()
+			shell.collect()
 
-			shell.collect(ch)
-
+			for _, metric := range shell.Metrics {
+				ch <- metric
+			}
 			wg.Done()
 		}(shell)
 	}
 
 	wg.Wait()
+}
+
+func (s *Shell) init() {
+	lRe := regexp.MustCompile(s.LabelsRegexp)
+	labels := lRe.SubexpNames()
+
+	s.VariableLabels = make([]string, 0)
+
+	for _, v := range labels[1:] {
+		if v == "" {
+			log.Fatalf("ERROR labels_regexp: '%s', '%s'", s.LabelsRegexp, labels)
+		}
+
+		if v != "value" {
+			s.VariableLabels = append(s.VariableLabels, v)
+		}
+	}
+
+	desc := prometheus.NewDesc(
+		s.Name,
+		s.Help,
+		s.VariableLabels,
+		s.ConstLabels,
+	)
+	s.Desc = desc
 }
 
 func (s *Shell) run() {
@@ -163,7 +172,7 @@ func (s *Shell) match() {
 	log.Debugf("Shell Run: '%s', '%s', '%s'", s.Cmd, s.Output, s.MatchMaps)
 }
 
-func (s *Shell) collect(ch chan<- prometheus.Metric) {
+func (s *Shell) collect() {
 	for _, matchMap := range s.MatchMaps {
 
 		labelValues := make([]string, 0)
@@ -174,12 +183,15 @@ func (s *Shell) collect(ch chan<- prometheus.Metric) {
 		valueStr := matchMap["value"]
 		value, _ := strconv.ParseFloat(valueStr, 64)
 
-		ch <- prometheus.MustNewConstMetric(
+
+		metric := prometheus.MustNewConstMetric(
 			s.Desc,
 			prometheus.GaugeValue,
 			value,
 			labelValues...,
 		)
+
+		s.Metrics = append(s.Metrics, metric)
 	}
 }
 
